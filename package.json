@@ -1,0 +1,17 @@
+{
+  "name": "realtoner-sdk",
+  "version": "0.0.1",
+  "description": "",
+  "main": "auth.js",
+  "dependencies": {
+    "grunt": "^0.4.5"
+  },
+  "devDependencies": {
+    "grunt": "^0.4.5"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "RyuIkHan",
+  "license": "ISC"
+}
