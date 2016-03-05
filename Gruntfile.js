@@ -16,7 +16,7 @@ module.exports = function (grunt) {
         //concat 설정
         concat: {
             basic: {
-                src: ['src/**'], //concat 타겟 설정(앞에서부터 순서대로 합쳐진다.)
+                src: ['src/**/*.js'], //concat 타겟 설정(앞에서부터 순서대로 합쳐진다.)
                 dest: 'release/<%=pkg.version %>/realtoner-angular.js' //concat 결과 파일
             }
         }
