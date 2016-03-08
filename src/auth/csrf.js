@@ -154,6 +154,7 @@
                             if(request.useHeaderMode){
                                 request.headers[request.csrfHeaderName] = currentCSRFToken;
                             }else{
+                                request.params = request.params || {};
                                 request.params[request.csrfParameterName] = currentCSRFToken;
                             }
                         }

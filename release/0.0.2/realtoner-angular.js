@@ -1,42 +1,117 @@
-(function(){
+(function () {
 
     "use strict";
 
     var CONSTANTS = {
-        AUTH_REJECTED : "auth-rejected" ,
-        AUTH_FORBIDDEN : "auth-forbidden"
+        AUTH_REJECTED: "auth-rejected",
+        AUTH_FORBIDDEN: "auth-forbidden"
     };
 
-    angular.module("realtoner.auth" , [
-        "realtoner.base" ,
-        "ngRoute"
-    ])
+    angular.module("realtoner.auth", [
+            "realtoner.base",
+            "ngRoute"
+        ])
 
-        .factory("authService" , ["$rootScope" , "httpBuffer" , function($rootScope , httpBuffer){
-            return{
-                loginConfirmed: function(data, configUpdater) {
+        /**
+         *
+         * */
+        .factory("csrfInterceptor", [function () {
+            return {
 
-                    var updater = configUpdater || function(config) { return config; };
+            };
+        }])
+
+        /**
+         *
+         * */
+        .provider("httpWrapper", function () {
+
+            var headerNames = {
+                csrfParameter: "",
+                csrfToken: ""
+            };
+
+            var oauthConfig = {
+                use: false
+            };
+
+            var csrfConfig = {
+                useParameterMode: true,
+
+                givenCSRFTokenHeaderName: "X-CSRF-TOKEN",
+
+                CSRFTokenParameterName: "_csrf",
+
+                MethodUsingCSRF: {
+                    get: false,
+                    post: true,
+                    delete: false,
+                    head: false
+                }
+            };
+
+            var csrfHeaderNames = {};
+
+            /**
+             * set use OAuth2 mode. default is false.
+             * */
+            this.setUseOAuth2Mode = function (flag) {
+                oauthConfig = !!flag;
+            };
+
+            /**
+             * set use CSRF paramter mode. default is true.
+             * */
+            this.setUseCSRFParameterMode = function (flag) {
+                csrfConfig.useParameterMode = !!flag;
+            };
+
+            /**
+             * set the given CSRF token(from server)'s header name. Default value is 'X-CSRF-TOKEN'.
+             * */
+            this.setCSRFHeaderName = function (headerName) {
+                csrfConfig.givenCSRFTokenHeaderName = headerName;
+            };
+
+            this.setCSRFTokenParameterName = function (parameterName) {
+                csrfConfig.CSRFTokenParameterName = parameterName;
+            };
+
+            this.$get = ["$http", function ($http) {
+
+                var currentCSRFToken;
+
+                return {};
+            }];
+        })
+
+        .factory("authService", ["$rootScope", "httpBuffer", function ($rootScope, httpBuffer) {
+            return {
+                loginConfirmed: function (data, configUpdater) {
+
+                    var updater = configUpdater || function (config) {
+                            return config;
+                        };
 
                     $rootScope.$broadcast("event:auth-loginConfirmed", data);
-                    httpBuffer.retryAll(CONSTANTS.AUTH_REJECTED , updater);
+                    httpBuffer.retryAll(CONSTANTS.AUTH_REJECTED, updater);
                 },
-                loginCancelled: function(data, reason) {
+                loginCancelled: function (data, reason) {
 
-                    httpBuffer.rejectAll(CONSTANTS.AUTH_REJECTED , reason);
+                    httpBuffer.rejectAll(CONSTANTS.AUTH_REJECTED, reason);
                     $rootScope.$broadcast('event:auth-loginCancelled', data);
                 }
             };
         }])
 
-        .factory("authInterceptor" , ["$rootScope" , "$q" , "httpBuffer" , function($rootScope , $q , httpBuffer){
+        .factory("authInterceptor", ["$rootScope", "$q", "httpBuffer", function ($rootScope, $q, httpBuffer) {
 
             return {
-                responseError : function(rejection){
+                responseError: function (rejection) {
 
                     var config = rejection.config || {};
 
-                    if (!config.ignoreAuthModule){
+                    if (!config.ignoreAuthModule) {
                         var deferred = $q.defer();
 
                         switch (rejection.status) {
@@ -63,84 +138,187 @@
 
     "use strict";
 
-    angular.module("realtoner.auth.oauth",[])
+    /**
+     * CSRF is Cross-Site Request Forgery. This helps implements CSRF protection in RESTFul
+     * application. It assumes that the CSRF token is given as HTTP header. And given CSRF token is
+     * put on HTTP parameter or one of headers. At this point, it defines two terminologies. One is
+     * 'Parameter mode' and the other is 'Header mode'.
+     *
+     * Parameter mode sends csrf token on parameter of http request. On the other hand, Header mode
+     * sends csrf token on header of http request. Parameter mode is default option for every request.
+     *
+     * @author RyuIkhan
+     * */
+    angular.module("realtoner.auth.csrf",[])
 
-        .provider("OAuthHttp" ,function(){
+        /**
+         * 'csrfInterceptor' provides CSRF operation. It intercepts every http request and implements
+         * CSRF. For http response, it checks header which has CSRF token and if exists, remember
+         * given token. For http request, it puts CSRF token given by http response.
+         *
+         * It provides some options which be applied to every request.
+         *
+         * 1. setUseParameterMode {Boolean}
+         * 2. setCSRFHeaderNameFromResponse {String}
+         * 3. setCSRFTokenParameterName {String}
+         * 4. setUseCSRFOn[Get|Post|Delete|Head\ {Boolean}
+         *
+         * It provides some options for each request. This options just be applied one http request.
+         *
+         * 1. csrfHeaderName {String} : use given value as header name of csrf token. If this request has this
+         *                                  property, that request will be header mode.
+         * 2. useCsrf {Boolean} : use csrf in current http request.
+         * 3. csrfParameterName {String} : use given value as parameter name of csrf token. If this property is,
+         *                                  then current http request use parameter mode.
+         * <example>
+         *     $http({
+         *          url : example.com/sample,
+         *          method : 'get',
+         *          useCsrf : true,
+         *          csrfParameterName : '_x_csrf'
+         *     });
+         *     </example>
+         * */
+        .provider("csrfInterceptor",[function(){
 
-            var parameterNames = {
-                grantType : "grant_type",
-                clientId : "client_id",
-                secret : "secret",
-                redirectUri : "redirect_uri"
-            };
+            var CSRFConfig = {
+                useParameterMode: true,
 
-            var urls = {
-                authorize : null,
-                accessToken : null
-            };
+                givenCSRFTokenHeaderName: "X-CSRF-TOKEN",
 
-            var listeners = {
-                onUnAuthorize : function(){
+                CSRFTokenParameterName: "_csrf",
+                CSRFTokenHeaderName : "REQ-CSRF-TOKEN",
 
+                methodUsingCSRF: {
+                    get: false,
+                    post: true,
+                    delete: false,
+                    head: false
                 }
             };
 
-            /*
-            * Setters for parameter name
-            * */
-            this.setGrantTypeParameterName = function(grantType){
-                parameterNames.grantType = grantType || parameterNames.grantType;
+
+            /**
+             * set use CSRF paramter mode. default is true.
+             * Parameter mode means CSRF token is sent as parameter not header field.
+             *
+             * @param flag {Boolean}
+             * */
+            this.setUseCSRFParameterMode = function (flag) {
+                CSRFConfig.useParameterMode = !!flag;
+
+                return this;
             };
 
-            this.setClientIdParameterName = function(clientId){
-                parameterNames.clientId = clientId || parameterNames.clientId;
+            /**
+             * set the given CSRF token(from server)'s header name. Default value is 'X-CSRF-TOKEN'.
+             * */
+            this.setCSRFHeaderNameFromResponse = function (headerName) {
+                CSRFConfig.givenCSRFTokenHeaderName = headerName;
+
+                return this;
             };
 
-            this.setSecretParameterName = function(secret){
-                parameterNames.secret = secret || parameterNames.secret;
+            /**
+             * set parameter name of csrf token. Default value is '_csrf'.
+             *
+             * @param parameterName {String}
+             * */
+            this.setCSRFTokenParameterName = function (parameterName) {
+                CSRFConfig.CSRFTokenParameterName = parameterName;
+
+                return this;
             };
 
-            this.setRedirectUriParameterName = function(redirectUri){
-                parameterNames.redirectUri = redirectUri || parameterNames.redirectUri;
+            /**
+             * set header name of csrf token. Default value is 'REQ-CSRF-TOKEN'.
+             *
+             * @param headerName {String}
+             * */
+            this.setCSRFTokenHeaderName = function(headerName){
+                CSRFCOnfig.CSRFTokenHeaderName = headerName;
+
+                return this;
             };
 
-            /*
-            * Setters for url.
-            * */
-            this.setAuthorizeUrl = function(authorizeUrl){
-                urls.authorize = authorizeUrl;
+            this.setUseCSRFOnGet = function(flag){
+                CSRFConfig.methodUsingCSRF.get = !!flag;
+
+                return this;
             };
 
-            this.setAccessTokenUrl = function(accessTokenUrl){
-                urls.accessToken = accessTokenUrl;
+            this.setUseCSRFOnPost = function(flag){
+                CSRFConfig.methodUsingCSRF.post = !!flag;
+
+                return this;
             };
 
-            /*
-            * Setters for listener
-            * */
-            this.setOnAuthorize = function(onUnAuthorize){
+            this.setUseCSRFOnDelete = function(flag){
+                CSRFConfig.methodUsingCSRF.delete = !!flag;
 
+                return this;
             };
 
-            this.$get = function(){
+            this.setUseCSRFOnHead = function(flag){
+                CSRFConfig.methodUsingCSRF.head = !!flag;
 
-                function ClientDetails(){
+                return this;
+            };
 
-                }
+            this.$get = ["$q", function($q){
 
-                var currentClientDetails;
-                var currentUserDetails = {
-                    principal : null,
-                    credential : null
+                var handleRequest = function(request){
+
+                    var method = request.method.toLocaleLowerCase().trim();
+
+                    request.useCsrf = request.useCsrf || CSRFConfig.methodUsingCSRF[method];
+                    request.useHeaderMode = request.useHeaderMode || !CSRFConfig.useParameterMode;
+                    request.csrfParameterName = request.csrfParameterName || CSRFConfig.CSRFTokenParameterName;
+
+                    if(request.useHeaderMode)
+                        request.csrfHeaderName = request.useHeaderMode || CSRFConfig.CSRFTokenHeaderName;
                 };
 
-                var OAuthHttp = function(requestObj){
+                var currentCSRFToken;
 
+                return {
+                    request : function(request){
+
+                        handleRequest(request);
+
+                        if(request.useCsrf){
+                            if(request.useHeaderMode){
+                                request.headers[request.csrfHeaderName] = currentCSRFToken;
+                            }else{
+                                request.params = request.params || {};
+                                request.params[request.csrfParameterName] = currentCSRFToken;
+                            }
+                        }
+
+                        return $q.resolve(request);
+                    },
+
+                    response : function(response){
+                        var csrfToken = response.headers(CSRFConfig.givenCSRFTokenHeaderName);
+
+                        if(csrfToken){
+                            currentCSRFToken = csrfToken;
+                        }
+
+                        return $q.resolve(response);
+                    },
+                    responseError : function(rejection){
+                        var csrfToken = rejection.headers(CSRFConfig.givenCSRFTokenHeaderName);
+
+                        if(csrfToken){
+                            currentCSRFToken = csrfToken;
+                        }
+
+                        return $q.reject(rejection);
+                    }
                 };
-
-                return OAuthHttp;
-            };
-        });
+            }];
+        }]);
 })();
 (function () {
 
