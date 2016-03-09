@@ -178,7 +178,7 @@
                             currentCSRFToken = csrfToken;
                         }
 
-                        return $q.reject(rejection);
+                        return rejection;
                     }
                 };
             }];
