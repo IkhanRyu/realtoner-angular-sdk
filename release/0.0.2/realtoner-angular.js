@@ -295,7 +295,7 @@
                             }
                         }
 
-                        return $q.resolve(request);
+                        return request;
                     },
 
                     response : function(response){
@@ -305,7 +305,7 @@
                             currentCSRFToken = csrfToken;
                         }
 
-                        return $q.resolve(response);
+                        return response;
                     },
                     responseError : function(rejection){
                         var csrfToken = rejection.headers(CSRFConfig.givenCSRFTokenHeaderName);
@@ -314,7 +314,7 @@
                             currentCSRFToken = csrfToken;
                         }
 
-                        return rejection;
+                        return $q.reject(rejection);
                     }
                 };
             }];
